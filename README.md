@@ -9,3 +9,11 @@ Capacitar os formandos em metodologia de investigação colaborativas em ambient
 3.	Construção de modelos 
 4.	Relatórios e artigos dinâmicos  
 5.	Introdução ao GitHib 
+
+## Setting 
+- **R Studio**, If you don't already have R, download it [here](https://cran.rstudio.com/). After that Install R Studio [here](https://www.rstudio.com/products/rstudio/download/#download)
+- **GitHub**, please sign up  [here](https://github.com/), and then download and install the *client* on your computer from this [link](https://desktop.github.com/).
+
+
+- Install **Latex**. This [link](https://www.latex-project.org/get/) offers you Latex for every operating system. If you are using Mac, you can get some instructions you have some instructions [here](https://miktex.org/howto/install-miktex-mac). If you are using **Windows**, I recommend you download **[Miktex](https://miktex.org/download/ctan/systems/win32/miktex/setup/windows-x64/basic-miktex-2.9.6753-x64.exe)**; tutorial [here](https://miktex.org/howto/install-miktex).  
+
