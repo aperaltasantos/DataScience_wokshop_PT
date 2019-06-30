@@ -1,0 +1,310 @@
+---
+title: "Data Science e investigação reproduzível e colaborativa"
+author: "A Peralta Santos"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+# Hospitals Arrears
+This work was developed to explore the arrears of Portuguese Public Hospitals between 2014-2019, all the data in publicly available at ["Portal da Transparencia"](https://transparencia.sns.gov.pt/explore/dataset/divida-total-vencida-e-pagamentos/table/?sort=periodo)
+
+### Set the configurations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = FALSE,
+  eval = TRUE
+  )
+
+# install.packages("tidyverse")
+library(tidyverse) # All purpose library 
+```
+
+
+## Load the dataset
+We loaded the databases from the API of the transparency Portal of the Ministry of Health, each time we run the code routine the latest data is loaded. 
+```{r}
+sns_epe <- readRDS("~/Documents/GitHub/DataScience_wokshop_PT/Data/sns_epe.rds")
+
+sns_sum_m <- readRDS("~/Documents/GitHub/DataScience_wokshop_PT/Data/sns_sum_m.rds")
+```
+
+
+## Create a table with hospitals arrears
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+table_monthly_var<- sns_sum_m %>%
+  select(year, month_name, arrears_m, arrear_m_var, percentile_rank) %>%
+  filter(year==2019)
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+library(kableExtra)
+kable(table_monthly_var, 
+      caption = "Montly Arrears variation of Portuguese E.P.E. Hospitals ", 
+      booktabs = T, 
+      digits = 1,
+      col.names = c("Year",
+                    "Month",
+                    "Total Arrears",
+                    "Monthly Arrears Variation",
+                    "Var. Percentile"))  %>%
+kable_styling(latex_options = "striped") %>%
+  footnote(general = "Agregated monthly arrears of the Portuguese E.P.E. Hospitals")
+```
+
+
+
+
+## Vizualize the hospitals arrears
+
+### Arrears over time
+```{r}
+p1 <- ggplot(data = sns_epe,
+            mapping = aes(x = date,
+                          y = arrears_sum,
+                          colour = year)) +
+            geom_point(alpha = 6/10) +
+  geom_smooth(method = lm, 
+              se = FALSE) +
+  geom_vline(xintercept=as.numeric(as.Date("2015-11-01")), colour="grey") + 
+  geom_text(aes(x=as.Date("2016-01-01"), 
+                label="XXI Governo",y=1000), 
+            colour="grey", 
+            angle=90, 
+            vjust = 1.2,
+            size = 3) 
+
+
+p1 +  labs(title = "E.P.E. Hospitals Arrears",
+           subtitle = "2013 - 2018",
+           color='Year (linear)',
+           y = "Arrears in Million Euros",
+           x = "Year",
+           caption = "Source: Portal da Transparencia SNS")  + 
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5)) +
+theme_minimal() +
+theme(plot.title=element_text( face="bold", 
+                               hjust=0.5,
+                               lineheight=1.2),
+      plot.subtitle=element_text(hjust=0.5)
+      )
+```
+
+### Arrears Variation
+```{r }
+
+sns_sum_m$colour <- ifelse(sns_sum_m$arrear_m_var <= 0, "Negative","Positive")
+sns_sum_m$hjust <- ifelse(sns_sum_m$arrear_m_var > 0, 1.3, -0.3)
+
+p1 <- ggplot(data = sns_sum_m,
+            mapping = aes(x = date,
+                          y = arrear_m_var,
+                          label="",
+                          hjust=hjust,
+                          na.rm = TRUE)) +
+            geom_bar(stat="identity",
+                     position="identity",
+                     aes(fill = colour))  + 
+#  geom_text(aes(y=0,colour=colour)) +
+  scale_fill_manual(values=c(Positive="#00BFC4",
+                             Negative="#F8766D"))
+
+
+
+p1 + labs(title = "Monthly variation of Portuguese E.P.E. Hospitals Arrears",
+           subtitle = "2014 - 2019",
+           y = "Arrears Monthly variation in Million Euros",
+           x = "Year",
+           caption = "Source: Portal da Transparencia SNS",
+           fill = "Arrears Var")  + 
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+theme_minimal() +
+theme(plot.title=element_text( face="bold", 
+                               hjust=0.5,
+                               lineheight=1.2),
+      plot.subtitle=element_text(hjust=0.5)
+      ) 
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+sns_sum_m$bailout <- ifelse(sns_sum_m$arrear_m_var < -50,1 ,0 )
+sns_sum_m$bailout1 <- ifelse(sns_sum_m$arrear_m_var < -10,1 ,0 )
+
+sns_sum_m<- sns_sum_m %>% 
+  arrange(date)  %>% 
+  mutate(time = row_number())
+
+sns_sum_m<-sns_sum_m  %>% 
+  mutate(bailout_lag1= lag(bailout,1)
+         )
+
+sns_bailout <- sns_sum_m %>%
+  select(date, bailout, bailout1, bailout_lag1)
+
+sns_model<-full_join(sns_epe, sns_bailout, by = NULL, copy = FALSE)
+
+sns_model<- sns_model %>% 
+  arrange(date)  %>% 
+  group_by(entidade) %>% 
+  mutate(time = row_number())
+
+
+```
+
+### Arrears by Hospital
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+p_tile <- ggplot(sns_epe, 
+            aes(date, hospital)) +
+  geom_tile(aes(fill = m_var_perct_rank),
+     colour = "white") + 
+  scale_fill_gradient(
+    low = "white",
+    high = "steelblue") +
+  facet_grid(~ year, switch = "x", scales = "free_x", space = "free_x")   +
+    #remove x and y axis labels
+  labs(y="")+
+  #remove extra space
+  scale_y_discrete(expand=c(0,0))+
+  #define new breaks on x-axis
+  scale_x_discrete(expand=c(0,0),
+                   breaks=c("2014","2015","2016","2017","2018","2019"))+
+    #set a base size for all fonts
+  theme_grey(base_size=8)+
+  guides(fill=guide_legend(title="Percentile Arrears Var"))+
+  labs(x="",y="",
+       title="Monthly Arrears Variation of E.P.E. Hospitals",
+       caption = "Source: Portal da Transparencia SNS")
+  #theme options
+  theme(
+    #bold font for legend text
+    legend.text=element_text(face="bold"),
+    #set thickness of axis ticks
+    axis.ticks=element_line(size=0.4),
+    #remove plot background
+    plot.background=element_blank(),
+    #remove plot border
+    panel.border=element_blank(),
+    plot.title=element_text( face="bold", 
+                               hjust=0.5,
+                               lineheight=1.2)
+  )
+
+```
+
+```{r}
+print(p_tile)
+```
+
+# Gross Domestic Product and Life Expactancy 
+_From the Kieran Healy's Book "Data Visualization"_
+
+
+In this example we will use the data from Gapminder website and explore the association between GDP and Life Expectancy
+
+```{r include=FALSE}
+library(gapminder)
+gapminder <- gapminder
+
+model_colors <- RColorBrewer::brewer.pal(3, "Set1")
+model_colors
+```
+
+```{r echo=FALSE , fig.align="center", fig.cap="Figure 3: GDP and Life Expectancy "}
+
+p0 <- ggplot(data = gapminder,
+            mapping = aes(x = log(gdpPercap), 
+                          y = lifeExp))
+
+p1 <- p0 + geom_point(alpha = 0.2) +
+    geom_smooth(method = "lm", 
+                aes(color = "OLS", 
+                    fill = "OLS")) +
+    geom_smooth(method = "lm", 
+                formula = y ~ splines::bs(x, df = 3),
+                aes(color = "Cubic Spline", 
+                    fill = "Cubic Spline")) 
+
+
+p1 + scale_color_manual(name = "Models", values = model_colors) +
+    scale_fill_manual(name = "Models", values = model_colors) +
+    theme(legend.position = "right") + labs(title = "Life expectancy and GDP per capita",
+           y = "Life expectancy in years",
+           x = "Log of GDP per capita")
+```
+
+```{r include=FALSE}
+out <- lm(formula = lifeExp ~ gdpPercap + pop + continent,
+          data = gapminder)
+
+out1 <- lm(formula = lifeExp ~ gdpPercap,
+          data = gapminder)
+```
+
+
+```{r include=FALSE}
+library(broom)
+library(Hmisc)
+library(devtools)
+library(socviz)
+
+out_comp <- tidy(out)
+
+out_conf <- tidy(out, conf.int = TRUE)
+
+
+out_conf <- subset(out_conf, term %nin% "(Intercept)")
+out_conf$nicelabs <- prefix_strip(out_conf$term, "continent")
+
+```
+
+We can create a table for the regression summary results 
+
+
+```{r }
+
+table1 <- out_conf %>% 
+  select(term, estimate, conf.low, conf.high, p.value)  %>% 
+  filter((str_detect(term, "continent")))
+
+table1 <- table1 %>%
+ dplyr::mutate(term = recode(term, 
+     "continentAmericas" = "America",
+     "continentAsia" = "Asia",
+     "continentEurope" = "Europe",
+     "continentOceania" = "Ocenia")
+  )
+
+kable(table1, 
+      align = "c",
+      digits = 2,
+      col.names = c("Continent",
+                           "Estimate",
+                           "Low 95% CI",
+                           "High 95% CI",
+                    "P value"),
+      caption = "Table. Linear regression of the effect of GDP on Life expectancy") %>%
+  kable_styling(full_width = F)
+```
+
+
+
+### THE END
+
+
