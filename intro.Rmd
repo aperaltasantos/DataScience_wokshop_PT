@@ -1,6 +1,6 @@
 ---
 title: "Data Science e investigação reproduzível e colaborativa"
-author: "Workshop September 2019"
+author: "A Peralta Santos"
 date: "`r Sys.Date()`"
 output:
   html_document:
